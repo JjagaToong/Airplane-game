@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Galaga Style Game</title>
+    <style>
+        body { margin: 0; background-color: #000; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
+        canvas { border: 2px solid #333; box-shadow: 0 0 20px rgba(255, 255, 255, 0.1); background: #000; }
+        .ui { position: absolute; top: 10px; left: 10px; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div class="ui">SCORE: <span id="score">0</span></div>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const scoreElement = document.getElementById("score");
+
+// 화면 크기 설정
+canvas.width = 480;
+canvas.height = 640;
+
+// 이미지 객체 생성
+const imgNames = ['player', 'enemy1', 'enemy2', 'enemy3', 'enemy4'];
+const images = {};
+let loadedCount = 0;
+
+imgNames.forEach(name => {
+    images[name] = new Image();
+    images[name].src = `${name}.png`; // 파일명 매칭
+    images[name].onload = () => {
+        loadedCount++;
+        if (loadedCount === imgNames.length) init();
+    };
+});
+
+// 게임 변수
+let score = 0;
+let player = { x: 215, y: 560, w: 40, h: 40, speed: 5 };
+let bullets = [];
+let enemies = [];
+let keys = {};
+let enemyDirection = 1; // 1: 오른쪽, -1: 왼쪽
+let enemyMoveTimer = 0;
+
+// 초기 세팅: 적 대열 생성
+function init() {
+    for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 8; col++) {
+            enemies.push({
+                x: 60 + col * 45,
+                y: 50 + row * 45,
+                w: 30,
+                h: 30,
+                type: `enemy${row + 1}`,
+                isAttacking: false,
+                originX: 60 + col * 45
+            });
+        }
+    }
+    requestAnimationFrame(update);
+}
+
+// 키 입력 이벤트
+window.addEventListener("keydown", e => keys[e.code] = true);
+window.addEventListener("keyup", e => keys[e.code] = false);
+
+// 총알 발사
+window.addEventListener("keydown", e => {
+    if (e.code === "Space") {
+        bullets.push({ x: player.x + player.w / 2 - 2, y: player.y, w: 4, h: 10 });
+    }
+});
+
+function update() {
+    // 플레이어 이동
+    if (keys["ArrowLeft"] && player.x > 0) player.x -= player.speed;
+    if (keys["ArrowRight"] && player.x < canvas.width - player.w) player.x += player.speed;
+
+    // 총알 업데이트
+    bullets.forEach((b, i) => {
+        b.y -= 8;
+        if (b.y < 0) bullets.splice(i, 1);
+    });
+
+    // 적 대열 이동 로직
+    enemyMoveTimer++;
+    let edgeReached = false;
+    
+    enemies.forEach(en => {
+        if (!en.isAttacking) {
+            en.x += 0.5 * enemyDirection;
+            if (en.x > canvas.width - 40 || en.x < 10) edgeReached = true;
+        } else {
+            en.y += 3; // 공격 중인 적은 아래로 하강
+            if (en.y > canvas.height) { // 화면 밖으로 나가면 다시 위로
+                en.y = -30;
+                en.isAttacking = false;
+            }
+        }
+    });
+
+    if (edgeReached) enemyDirection *= -1;
+
+    // 무작위 적 공격 시작 (갤러그 특징)
+    if (Math.random() < 0.01) {
+        const nonAttacking = enemies.filter(e => !e.isAttacking);
+        if (nonAttacking.length > 0) {
+            nonAttacking[Math.floor(Math.random() * nonAttacking.length)].isAttacking = true;
+        }
+    }
+
+    // 충돌 체크
+    bullets.forEach((b, bi) => {
+        enemies.forEach((en, ei) => {
+            if (b.x < en.x + en.w && b.x + b.w > en.x && b.y < en.y + en.h && b.y + b.h > en.y) {
+                enemies.splice(ei, 1);
+                bullets.splice(bi, 1);
+                score += 100;
+                scoreElement.innerText = score;
+            }
+        });
+    });
+
+    draw();
+    if (enemies.length > 0) requestAnimationFrame(update);
+    else alert("STAGE CLEAR!");
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 배경 별빛 효과 (단순하게)
+    ctx.fillStyle = "white";
+    for(let i=0; i<5; i++) ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 2, 2);
+
+    // 플레이어
+    ctx.drawImage(images.player, player.x, player.y, player.w, player.h);
+
+    // 적들
+    enemies.forEach(en => {
+        ctx.drawImage(images[en.type], en.x, en.y, en.w, en.h);
+    });
+
+    // 총알
+    ctx.fillStyle = "#00ffea";
+    bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+}
+</script>
+</body>
+</html>
